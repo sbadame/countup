@@ -67,8 +67,11 @@ func (c *CountDown) NextDue() time.Time {
 
 var (
 	timer = template.Must(template.New("timer").Parse(`
-<div class="timer card" hx-get="timer/{{.Id}}" hx-trigger="timerUpdate/{{.Id}}">
-  <h2 class="card-header" >{{.Name}}</h2>
+<div id="timer-{{.Id}}" class="timer card" hx-get="timer/{{.Id}}" hx-trigger="timerUpdate/{{.Id}}">
+  <h2 class="card-header">
+    {{.Name}}
+    <button type="button" class="btn btn-outline-danger" hx-delete="timer/{{.Id}}" hx-swap="delete" hx-target="#timer-{{.Id}}"><i class="bi bi-trash"></i></button>
+  </h2>
   <div class="card-body">
     <p class="card-text">
       {{.Description}}
@@ -271,6 +274,27 @@ func main() {
 		}
 
 		return timer.Execute(w, c)
+	}))
+
+	http.HandleFunc("DELETE /timer/{id}", ErrorHTTPHandler(func(w http.ResponseWriter, r *http.Request) error {
+		id, err := strconv.Atoi(r.PathValue("id"))
+		if err != nil {
+			return httpError{http.StatusBadRequest, fmt.Errorf("Error parsing id : %w", err)}
+		}
+
+		result, err := db.ExecContext(r.Context(), `DELETE FROM timer WHERE id = ?`, id)
+		if err == sql.ErrNoRows {
+			return httpError{http.StatusNotFound, fmt.Errorf("No timer with id: %s", id)}
+		}
+		if err != nil {
+			return err
+		}
+		if rows, err := result.RowsAffected(); err != nil {
+			return err
+		} else if rows != 1 {
+			return fmt.Errorf("Exepected only 1 row to be deleted.")
+		}
+		return nil
 	}))
 
 	http.HandleFunc("POST /timer", ErrorHTTPHandler(func(w http.ResponseWriter, r *http.Request) error {
