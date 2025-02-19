@@ -209,7 +209,7 @@ func main() {
 		}
 	}
 
-	http.HandleFunc("/", ErrorHTTPHandler(func(w http.ResponseWriter, r *http.Request) error {
+	http.HandleFunc("GET /", ErrorHTTPHandler(func(w http.ResponseWriter, r *http.Request) error {
 		var timers []CountDown
 
 		rows, err := db.QueryContext(r.Context(), `SELECT id, name, description, lastTime, frequency FROM timer`)
