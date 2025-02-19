@@ -174,18 +174,21 @@ func main() {
 	}
 
 	if *dbRecreate {
-		_, err = db.Exec(
-			`DROP TABLE IF EXISTS timer;
-		CREATE TABLE timer (
-			id INTEGER PRIMARY KEY,
-			name TEXT NOT NULL,
-			description TEXT NOT NULL,
-			lasttime TEXT NOT NULL,
-			frequency INTEGER NOT NULL
-		);`)
-		if err != nil {
+		if _, err = db.Exec(`DROP TABLE IF EXISTS timer;`); err != nil {
 			log.Fatal(err)
 		}
+	}
+
+	_, err = db.Exec(`
+	CREATE TABLE IF NOT EXISTS timer (
+		id INTEGER PRIMARY KEY,
+		name TEXT NOT NULL,
+		description TEXT NOT NULL,
+		lasttime TEXT NOT NULL,
+		frequency INTEGER NOT NULL
+	);`)
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	if *dbPopulateTestData {
