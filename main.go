@@ -181,7 +181,7 @@ func main() {
 			name TEXT NOT NULL,
 			description TEXT NOT NULL,
 			lasttime TEXT NOT NULL,
-			frequency INTEGER
+			frequency INTEGER NOT NULL
 		);`)
 		if err != nil {
 			log.Fatal(err)
@@ -283,11 +283,12 @@ func main() {
 			Name:        r.Form.Get("name"),
 			Description: r.Form.Get("description"),
 			LastTime:    lastTime,
+			Frequency:   0, // No way to set a frequency in the UI yet...
 		}
 
 		result, err := db.ExecContext(r.Context(),
-			`INSERT INTO timer (name, description, lasttime) VALUES (?,?,?);`,
-			cd.Name, cd.Description, lastTime.Format(time.RFC3339))
+			`INSERT INTO timer (name, description, lasttime, frequency) VALUES (?,?,?,?);`,
+			cd.Name, cd.Description, lastTime.Format(time.RFC3339), cd.Frequency)
 		if err != nil {
 			return err
 		}
