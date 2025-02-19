@@ -346,6 +346,6 @@ func main() {
 		return nil
 	}))
 
-	fmt.Printf("Serving on :%d\n", *httpPort)
+	log.Printf("Serving on :%d\n", *httpPort)
 	log.Fatal(http.ListenAndServe(":"+strconv.Itoa(*httpPort), nil))
 }
