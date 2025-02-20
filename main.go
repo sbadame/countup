@@ -67,15 +67,12 @@ func (c *CountDown) NextDue() time.Time {
 
 var (
 	timer = template.Must(template.New("timer").Parse(`
-<div id="timer-{{.Id}}" class="timer card" hx-get="timer/{{.Id}}" hx-trigger="timerUpdate/{{.Id}}">
-  <h2 class="card-header">
-    {{.Name}}
-    <button type="button" class="btn btn-outline-danger" hx-delete="timer/{{.Id}}" hx-swap="delete" hx-target="#timer-{{.Id}}"><i class="bi bi-trash"></i></button>
-  </h2>
-  <div class="card-body">
-    <p class="card-text">
+<div id="timer-{{.Id}}" hx-get="timer/{{.Id}}" hx-trigger="timerUpdate/{{.Id}}" class="border-bottom d-flex pt-3 text-muted">
+<div class="p-3">
+  <strong class="text-dark">{{.Name}}</strong>
+  <button type="button" class="btn btn-sm btn-success" hx-post="timer/{{.Id}}/reset" hx-swap="none"><i class="bi bi-check-circle"></i></button>
+  <p class="my-0">
       {{.Description}}
-
       {{ if not .LastTime.IsZero -}}
 	Last happened <span data-locale-date-string="{{.LastTime}}"></span>
 	(<span class="last-time" data-format-distance-to-now="{{/* RFC3339 */}}{{.LastTime.Format "2006-01-02T15:04:05Z07:00"}}"></span> ago)
@@ -83,9 +80,9 @@ var (
       {{ if .Frequency -}}
 	Do it again in <span class="last-time" data-format-distance-to-now="{{/* RFC3339 */}}{{.NextDue.Format "2006-01-02T15:04:05Z07:00"}}"></span>
       {{- end}}
-      <button type="button" class="btn btn-success" hx-post="timer/{{.Id}}/reset" hx-swap="none">Done!</button>
-    </p>
-  </div>
+  </p>
+  <button type="button" class="btn btn-sm btn-outline-danger" hx-delete="timer/{{.Id}}" hx-swap="delete" hx-target="#timer-{{.Id}}"><i class="bi bi-trash"></i></button>
+</div>
 </div>
 `))
 
@@ -99,18 +96,23 @@ var (
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   </head>
-  <body>
-    <h1>Count up timers</h1>
+  <body class="bg-light">
+    <header class="d-flex flex-wrap justify-content-center py-3 mb-4 border-bottom">
+      <a href="/" class="d-flex align-items-center mb-3 mb-md-0 me-md-auto text-dark text-decoration-none">
+        <span class="fs-4">Count up Timer</span>
+      </a>
+      <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createTimer">New Timer</button>
+    </header>
+
+    <main id="timerList" class="container">
+      <div class="bg-body rounded shadow-sm">
+	{{range .}}
+	  {{template "timer" .}}
+	{{end}}
+      </div>
+    </main>
+
     {{/* Form for creating timers */}}
-    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createTimer">New Timer</button>
-
-    <div id="timerList">
-    {{range .}}
-      {{template "timer" .}}
-    {{end}}
-    </div>
-
-
     <div class="modal fade" id="createTimer" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
       <form hx-post="/timer" hx-target="#timerList" hx-swap="afterbegin">
 	<div class="modal-dialog">
@@ -130,7 +132,7 @@ var (
 		  </div>
 		  <div class="mb-3">
 		    <label for="timerLastTime" class="form-label">Last time I did it</label>
-		    <input type="date" id="timerLastTime" name="lasttime"></input>
+		    <input type="datetime-local" id="timerLastTime" name="lasttime"></input>
 		  </div>
 	    </div>
 	    <div class="modal-footer">
@@ -153,7 +155,7 @@ var (
       }
       renderTimer()
       document.addEventListener('htmx:afterSwap', renderTimer);
-      document.querySelector("input[type='date']").valueAsDate = new Date();
+      document.querySelector("input[type='datetime-local']").value = dateFns.format(new Date(), "yyyy-MM-dd'T'HH:mm");
     </script>
   </body>
 </html>
