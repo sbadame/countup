@@ -75,8 +75,14 @@ var (
   <div class="card-body">
     <p class="card-text">
       {{.Description}}
-      {{ if not .LastTime.IsZero -}}<p class="last-time">{{/* RFC3339 */}}{{.LastTime.Format "2006-01-02T15:04:05Z07:00"}}</p>{{- end}}
-      {{ if .Frequency -}}<p class="next-time">{{.NextDue.Format "2006-01-02T15:04:05Z07:00"}}</p>{{- end}}
+
+      {{ if not .LastTime.IsZero -}}
+	Last happened <span data-locale-date-string="{{.LastTime}}"></span>
+	(<span class="last-time" data-format-distance-to-now="{{/* RFC3339 */}}{{.LastTime.Format "2006-01-02T15:04:05Z07:00"}}"></span> ago)
+      {{- end}}
+      {{ if .Frequency -}}
+	Do it again in <span class="last-time" data-format-distance-to-now="{{/* RFC3339 */}}{{.NextDue.Format "2006-01-02T15:04:05Z07:00"}}"></span>
+      {{- end}}
       <button type="button" class="btn btn-success" hx-post="timer/{{.Id}}/reset" hx-swap="none">Done!</button>
     </p>
   </div>
@@ -141,19 +147,12 @@ var (
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
     <script>
       {{/* Format the times to local locale with a plain english description of how long ago. */}}
-      function renderTimer(e) {
-	const lastTime = e.querySelector('.last-time');
-	if (lastTime) {
-	  lastTime.innerText = "Last done " + dateFns.formatDistanceToNow(new Date(lastTime.innerText)) + " ago";
-        }
-
-	const nextTime = e.querySelector('.next-time');
-	if (nextTime) {
-	 nextTime.innerText = "Do again in " +  dateFns.formatDistanceToNow(new Date(nextTime.innerText));
-        }
+      function renderTimer() {
+	document.querySelectorAll('[data-format-distance-to-now]').forEach(e => e.innerText = dateFns.formatDistanceToNow(e.dataset.formatDistanceToNow));
+	document.querySelectorAll('[data-locale-date-string]').forEach(e => e.innerText = new Date(e.dataset.localeDateString).toLocaleDateString());
       }
-      document.querySelectorAll('.timer').forEach(renderTimer);
-      document.addEventListener('htmx:afterSwap', e => { renderTimer(e.detail.elt); });
+      renderTimer()
+      document.addEventListener('htmx:afterSwap', renderTimer);
       document.querySelector("input[type='date']").valueAsDate = new Date();
     </script>
   </body>
