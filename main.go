@@ -73,9 +73,11 @@ var (
   <button type="button" class="btn btn-sm btn-success" hx-post="timer/{{.Id}}/reset" hx-swap="none"><i class="bi bi-check-circle"></i></button>
   <p class="my-0">
       {{.Description}}
+      {{ if .Description }}<br>{{end}}
       {{ if not .LastTime.IsZero -}}
 	Last happened <span data-locale-date-string="{{.LastTime}}"></span>
 	(<span class="last-time" data-format-distance-to-now="{{/* RFC3339 */}}{{.LastTime.Format "2006-01-02T15:04:05Z07:00"}}"></span> ago)
+	<br>
       {{- end}}
       {{ if .Frequency -}}
 	Do it again in <span class="last-time" data-format-distance-to-now="{{/* RFC3339 */}}{{.NextDue.Format "2006-01-02T15:04:05Z07:00"}}"></span>
