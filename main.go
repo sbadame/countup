@@ -58,7 +58,7 @@ type CountDown struct {
 	Frequency         time.Duration
 }
 
-func (c *CountDown) NextDue() time.Time {
+func (c CountDown) NextDue() time.Time {
 	if c.LastTime.IsZero() {
 		return time.Now().Add(c.Frequency)
 	}
@@ -157,6 +157,18 @@ var (
 		    <label for="timerLastTime" class="form-label">Last time I did it</label>
 		    <input type="datetime-local" id="timerLastTime" name="lasttime"></input>
 		  </div>
+		  <div class="mb-3">
+                    <label for="timerFrequency" class="form-label">Do it every:</label>
+                    <div class="input-group">
+                      <input type="number" id="timerFrequencyValue" name="frequencyValue" class="form-control" min="1" value="1">
+                      <select id="timerFrequencyUnit" name="frequencyUnit" class="form-select">
+                        <option value="86400000000000">Days</option>
+                        <option value="604800000000000">Weeks</option>
+                        <option value="2592000000000000">Months</option>
+                        <option value="31536000000000000">Years</option>
+                      </select>
+                    </div>
+                  </div>
 	    </div>
 	    <div class="modal-footer">
 	      <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
@@ -331,11 +343,25 @@ func main() {
 			return httpError{http.StatusBadRequest, fmt.Errorf("Error parsing query 'lasttime': %w", err)}
 		}
 
+		// Parse frequency parameters
+		frequencyValue, err := strconv.ParseInt(r.Form.Get("frequencyValue"), 10, 64)
+		if err != nil {
+			return httpError{http.StatusBadRequest, fmt.Errorf("Error parsing frequency value: %w", err)}
+		}
+
+		frequencyUnit, err := strconv.ParseInt(r.Form.Get("frequencyUnit"), 10, 64)
+		if err != nil {
+			return httpError{http.StatusBadRequest, fmt.Errorf("Error parsing frequency unit: %w", err)}
+		}
+
+		// Calculate total frequency in nanoseconds, to match with Duration.
+		frequency := time.Duration(frequencyValue * frequencyUnit)
+
 		cd := CountDown{
 			Name:        r.Form.Get("name"),
 			Description: r.Form.Get("description"),
 			LastTime:    lastTime,
-			Frequency:   0, // No way to set a frequency in the UI yet...
+			Frequency:   frequency,
 		}
 
 		result, err := db.ExecContext(r.Context(),
