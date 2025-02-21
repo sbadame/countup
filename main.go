@@ -326,7 +326,7 @@ func main() {
 			return httpError{http.StatusBadRequest, fmt.Errorf("Error parsing form : %w", err)}
 		}
 
-		lastTime, err := time.Parse(time.DateOnly, r.Form.Get("lasttime"))
+		lastTime, err := time.Parse("2006-01-02T15:04", r.Form.Get("lasttime"))
 		if err != nil {
 			return httpError{http.StatusBadRequest, fmt.Errorf("Error parsing query 'lasttime': %w", err)}
 		}
