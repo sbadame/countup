@@ -307,16 +307,15 @@ func main() {
 		}
 
 		result, err := db.ExecContext(r.Context(), `DELETE FROM timer WHERE id = ?`, id)
-		if err == sql.ErrNoRows {
-			return httpError{http.StatusNotFound, fmt.Errorf("No timer with id: %s", id)}
-		}
 		if err != nil {
 			return err
 		}
 		if rows, err := result.RowsAffected(); err != nil {
 			return err
+		} else if rows == 0 {
+			return httpError{http.StatusNotFound, fmt.Errorf("No timer with id: %s", id)}
 		} else if rows != 1 {
-			return fmt.Errorf("Exepected only 1 row to be deleted.")
+			return fmt.Errorf("Exepected only 1 row to be deleted but instead %d where.", rows)
 		}
 		return nil
 	}))
@@ -358,12 +357,19 @@ func main() {
 			return httpError{http.StatusBadRequest, fmt.Errorf("Error parsing id : %w", err)}
 		}
 
-		_, err = db.ExecContext(r.Context(), `UPDATE timer SET lasttime = ? WHERE id = ?`, time.Now().Format(time.RFC3339), id)
-		if err == sql.ErrNoRows {
-			return httpError{http.StatusNotFound, fmt.Errorf("No timer with id: %s", id)}
-		}
+		result, err := db.ExecContext(r.Context(), `UPDATE timer SET lasttime = ? WHERE id = ?`, time.Now().Format(time.RFC3339), id)
 		if err != nil {
 			return err
+		}
+		rows, err := result.RowsAffected()
+		if err != nil {
+			return err
+		}
+		if rows == 0 {
+			return httpError{http.StatusNotFound, fmt.Errorf("No timer with id: %s", id)}
+		}
+		if rows > 1 {
+			return fmt.Errorf("Expected only 1 row to be affect, but instead %d where", rows)
 		}
 
 		w.Header().Set("HX-Trigger", "timerUpdate/"+r.PathValue("id"))
