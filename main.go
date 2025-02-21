@@ -200,6 +200,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer db.Close()
 
 	if *dbRecreate {
 		if _, err = db.Exec(`DROP TABLE IF EXISTS timer;`); err != nil {
