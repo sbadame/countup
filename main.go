@@ -97,13 +97,27 @@ var (
     <script src="https://unpkg.com/htmx.org@2.0.4" integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+" crossorigin="anonymous"></script>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+      .floating-button {
+        position: fixed;
+        bottom: 2rem;
+        right: 2rem;
+        z-index: 1030; /* https://getbootstrap.com/docs/5.0/layout/z-index/ */
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+        border-radius: 50%;
+        width: 60px;
+        height: 60px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+    </style>
   </head>
   <body class="bg-light">
     <header class="d-flex flex-wrap justify-content-center py-3 mb-4 border-bottom">
       <a href="/" class="d-flex align-items-center mb-3 mb-md-0 me-md-auto text-dark text-decoration-none">
         <span class="fs-4">Count up Timer</span>
       </a>
-      <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createTimer">New Timer</button>
     </header>
 
     <main id="timerList" class="container">
@@ -113,6 +127,13 @@ var (
 	{{end}}
       </div>
     </main>
+
+    <!-- <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createTimer">New Timer</button> -->
+
+    <!-- Floating action button -->
+    <button type="button" class="btn btn-primary floating-button" data-bs-toggle="modal" data-bs-target="#createTimer">
+      <i class="bi bi-plus fs-4"></i>
+    </button>
 
     {{/* Form for creating timers */}}
     <div class="modal fade" id="createTimer" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
