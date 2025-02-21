@@ -197,6 +197,168 @@ var (
 `))
 )
 
+type Server struct {
+	db *sql.DB
+}
+
+func (s *Server) mux() *http.ServeMux {
+	m := http.NewServeMux()
+	m.HandleFunc("GET /", ErrorHTTPHandler(func(w http.ResponseWriter, r *http.Request) error {
+		var timers []CountDown
+
+		rows, err := s.db.QueryContext(r.Context(), `SELECT id, name, description, lastTime, frequency FROM timer`)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var c CountDown
+			var lt string
+			if err := rows.Scan(&c.Id, &c.Name, &c.Description, &lt, &c.Frequency); err != nil {
+				return err
+			}
+
+			if lt != "" {
+				if lastTime, err := time.Parse(time.RFC3339, lt); err != nil {
+					return err
+				} else {
+					c.LastTime = lastTime
+				}
+			}
+
+			timers = append(timers, c)
+		}
+
+		// Write to a buffer first to avoid writing partial results if an error occurs during template execution
+		var buf bytes.Buffer
+		if err := homePage.Execute(&buf, timers); err != nil {
+			return err
+		}
+
+		// OK, no errors, copy the written string out.
+		io.Copy(w, &buf)
+		return nil
+	}))
+
+	m.HandleFunc("GET /timer/{id}", ErrorHTTPHandler(func(w http.ResponseWriter, r *http.Request) error {
+		id, err := strconv.Atoi(r.PathValue("id"))
+		if err != nil {
+			return httpError{http.StatusBadRequest, fmt.Errorf("Error parsing id : %w", err)}
+		}
+
+		var c CountDown
+		var lt string
+
+		row := s.db.QueryRowContext(r.Context(), `SELECT id, name, description, lastTime, frequency FROM timer WHERE id = ?`, id)
+		if err := row.Scan(&c.Id, &c.Name, &c.Description, &lt, &c.Frequency); err != nil {
+			if err == sql.ErrNoRows {
+				return httpError{http.StatusNotFound, fmt.Errorf("No timer with id: %d", id)}
+			}
+			return err
+		}
+		if lt != "" {
+			if lastTime, err := time.Parse(time.RFC3339, lt); err != nil {
+				return err
+			} else {
+				c.LastTime = lastTime
+			}
+		}
+
+		return timer.Execute(w, c)
+	}))
+
+	m.HandleFunc("DELETE /timer/{id}", ErrorHTTPHandler(func(w http.ResponseWriter, r *http.Request) error {
+		id, err := strconv.Atoi(r.PathValue("id"))
+		if err != nil {
+			return httpError{http.StatusBadRequest, fmt.Errorf("Error parsing id : %w", err)}
+		}
+
+		result, err := s.db.ExecContext(r.Context(), `DELETE FROM timer WHERE id = ?`, id)
+		if err != nil {
+			return err
+		}
+		if rows, err := result.RowsAffected(); err != nil {
+			return err
+		} else if rows == 0 {
+			return httpError{http.StatusNotFound, fmt.Errorf("No timer with id: %d", id)}
+		} else if rows != 1 {
+			return fmt.Errorf("Exepected only 1 row to be deleted but instead %d where.", rows)
+		}
+		return nil
+	}))
+
+	m.HandleFunc("POST /timer", ErrorHTTPHandler(func(w http.ResponseWriter, r *http.Request) error {
+		if err := r.ParseForm(); err != nil {
+			return httpError{http.StatusBadRequest, fmt.Errorf("Error parsing form : %w", err)}
+		}
+
+		lastTime, err := time.Parse("2006-01-02T15:04", r.Form.Get("lasttime"))
+		if err != nil {
+			return httpError{http.StatusBadRequest, fmt.Errorf("Error parsing query 'lasttime': %w", err)}
+		}
+
+		// Parse frequency parameters
+		frequencyValue, err := strconv.ParseInt(r.Form.Get("frequencyValue"), 10, 64)
+		if err != nil {
+			return httpError{http.StatusBadRequest, fmt.Errorf("Error parsing frequency value: %w", err)}
+		}
+
+		frequencyUnit, err := strconv.ParseInt(r.Form.Get("frequencyUnit"), 10, 64)
+		if err != nil {
+			return httpError{http.StatusBadRequest, fmt.Errorf("Error parsing frequency unit: %w", err)}
+		}
+
+		// Calculate total frequency in nanoseconds, to match with Duration.
+		frequency := time.Duration(frequencyValue * frequencyUnit)
+
+		cd := CountDown{
+			Name:        r.Form.Get("name"),
+			Description: r.Form.Get("description"),
+			LastTime:    lastTime,
+			Frequency:   frequency,
+		}
+
+		result, err := s.db.ExecContext(r.Context(),
+			`INSERT INTO timer (name, description, lasttime, frequency) VALUES (?,?,?,?);`,
+			cd.Name, cd.Description, lastTime.Format(time.RFC3339), cd.Frequency)
+		if err != nil {
+			return err
+		}
+
+		if cd.Id, err = result.LastInsertId(); err != nil {
+			return err
+		}
+
+		return timer.Execute(w, cd)
+	}))
+
+	m.HandleFunc("POST /timer/{id}/reset", ErrorHTTPHandler(func(w http.ResponseWriter, r *http.Request) error {
+		id, err := strconv.Atoi(r.PathValue("id"))
+		if err != nil {
+			return httpError{http.StatusBadRequest, fmt.Errorf("Error parsing id : %w", err)}
+		}
+
+		result, err := s.db.ExecContext(r.Context(), `UPDATE timer SET lasttime = ? WHERE id = ?`, time.Now().Format(time.RFC3339), id)
+		if err != nil {
+			return err
+		}
+		rows, err := result.RowsAffected()
+		if err != nil {
+			return err
+		}
+		if rows == 0 {
+			return httpError{http.StatusNotFound, fmt.Errorf("No timer with id: %d", id)}
+		}
+		if rows > 1 {
+			return fmt.Errorf("Expected only 1 row to be affect, but instead %d where", rows)
+		}
+
+		w.Header().Set("HX-Trigger", "timerUpdate/"+r.PathValue("id"))
+		return nil
+	}))
+	return m
+}
+
 func main() {
 
 	var dbFile = flag.String("db-file", "timers.db", "The sqlite file to read and write state from.")
@@ -249,160 +411,6 @@ func main() {
 		}
 	}
 
-	http.HandleFunc("GET /", ErrorHTTPHandler(func(w http.ResponseWriter, r *http.Request) error {
-		var timers []CountDown
-
-		rows, err := db.QueryContext(r.Context(), `SELECT id, name, description, lastTime, frequency FROM timer`)
-		if err != nil {
-			return err
-		}
-		defer rows.Close()
-		for rows.Next() {
-			var c CountDown
-			var lt string
-			if err := rows.Scan(&c.Id, &c.Name, &c.Description, &lt, &c.Frequency); err != nil {
-				return err
-			}
-
-			if lt != "" {
-				if lastTime, err := time.Parse(time.RFC3339, lt); err != nil {
-					return err
-				} else {
-					c.LastTime = lastTime
-				}
-			}
-
-			timers = append(timers, c)
-		}
-
-		// Write to a buffer first to avoid writing partial results if an error occurs during template execution
-		var buf bytes.Buffer
-		if err := homePage.Execute(&buf, timers); err != nil {
-			return err
-		}
-
-		// OK, no errors, copy the written string out.
-		io.Copy(w, &buf)
-		return nil
-	}))
-
-	http.HandleFunc("GET /timer/{id}", ErrorHTTPHandler(func(w http.ResponseWriter, r *http.Request) error {
-		id, err := strconv.Atoi(r.PathValue("id"))
-		if err != nil {
-			return httpError{http.StatusBadRequest, fmt.Errorf("Error parsing id : %w", err)}
-		}
-
-		var c CountDown
-		var lt string
-
-		row := db.QueryRowContext(r.Context(), `SELECT id, name, description, lastTime, frequency FROM timer WHERE id = ?`, id)
-		if err := row.Scan(&c.Id, &c.Name, &c.Description, &lt, &c.Frequency); err != nil {
-			if err == sql.ErrNoRows {
-				return httpError{http.StatusNotFound, fmt.Errorf("No timer with id: %s", id)}
-			}
-			return err
-		}
-		if lt != "" {
-			if lastTime, err := time.Parse(time.RFC3339, lt); err != nil {
-				return err
-			} else {
-				c.LastTime = lastTime
-			}
-		}
-
-		return timer.Execute(w, c)
-	}))
-
-	http.HandleFunc("DELETE /timer/{id}", ErrorHTTPHandler(func(w http.ResponseWriter, r *http.Request) error {
-		id, err := strconv.Atoi(r.PathValue("id"))
-		if err != nil {
-			return httpError{http.StatusBadRequest, fmt.Errorf("Error parsing id : %w", err)}
-		}
-
-		result, err := db.ExecContext(r.Context(), `DELETE FROM timer WHERE id = ?`, id)
-		if err != nil {
-			return err
-		}
-		if rows, err := result.RowsAffected(); err != nil {
-			return err
-		} else if rows == 0 {
-			return httpError{http.StatusNotFound, fmt.Errorf("No timer with id: %s", id)}
-		} else if rows != 1 {
-			return fmt.Errorf("Exepected only 1 row to be deleted but instead %d where.", rows)
-		}
-		return nil
-	}))
-
-	http.HandleFunc("POST /timer", ErrorHTTPHandler(func(w http.ResponseWriter, r *http.Request) error {
-		if err := r.ParseForm(); err != nil {
-			return httpError{http.StatusBadRequest, fmt.Errorf("Error parsing form : %w", err)}
-		}
-
-		lastTime, err := time.Parse("2006-01-02T15:04", r.Form.Get("lasttime"))
-		if err != nil {
-			return httpError{http.StatusBadRequest, fmt.Errorf("Error parsing query 'lasttime': %w", err)}
-		}
-
-		// Parse frequency parameters
-		frequencyValue, err := strconv.ParseInt(r.Form.Get("frequencyValue"), 10, 64)
-		if err != nil {
-			return httpError{http.StatusBadRequest, fmt.Errorf("Error parsing frequency value: %w", err)}
-		}
-
-		frequencyUnit, err := strconv.ParseInt(r.Form.Get("frequencyUnit"), 10, 64)
-		if err != nil {
-			return httpError{http.StatusBadRequest, fmt.Errorf("Error parsing frequency unit: %w", err)}
-		}
-
-		// Calculate total frequency in nanoseconds, to match with Duration.
-		frequency := time.Duration(frequencyValue * frequencyUnit)
-
-		cd := CountDown{
-			Name:        r.Form.Get("name"),
-			Description: r.Form.Get("description"),
-			LastTime:    lastTime,
-			Frequency:   frequency,
-		}
-
-		result, err := db.ExecContext(r.Context(),
-			`INSERT INTO timer (name, description, lasttime, frequency) VALUES (?,?,?,?);`,
-			cd.Name, cd.Description, lastTime.Format(time.RFC3339), cd.Frequency)
-		if err != nil {
-			return err
-		}
-
-		if cd.Id, err = result.LastInsertId(); err != nil {
-			return err
-		}
-
-		return timer.Execute(w, cd)
-	}))
-
-	http.HandleFunc("POST /timer/{id}/reset", ErrorHTTPHandler(func(w http.ResponseWriter, r *http.Request) error {
-		id, err := strconv.Atoi(r.PathValue("id"))
-		if err != nil {
-			return httpError{http.StatusBadRequest, fmt.Errorf("Error parsing id : %w", err)}
-		}
-
-		result, err := db.ExecContext(r.Context(), `UPDATE timer SET lasttime = ? WHERE id = ?`, time.Now().Format(time.RFC3339), id)
-		if err != nil {
-			return err
-		}
-		rows, err := result.RowsAffected()
-		if err != nil {
-			return err
-		}
-		if rows == 0 {
-			return httpError{http.StatusNotFound, fmt.Errorf("No timer with id: %s", id)}
-		}
-		if rows > 1 {
-			return fmt.Errorf("Expected only 1 row to be affect, but instead %d where", rows)
-		}
-
-		w.Header().Set("HX-Trigger", "timerUpdate/"+r.PathValue("id"))
-		return nil
-	}))
-
 	log.Printf("Serving on :%d\n", *httpPort)
-	log.Fatal(http.ListenAndServe(":"+strconv.Itoa(*httpPort), nil))
+	log.Fatal(http.ListenAndServe(":"+strconv.Itoa(*httpPort), (&Server{db}).mux()))
 }
