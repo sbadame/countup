@@ -15,7 +15,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-// HTTPError makes it easy to create errors that map to HTTP Status Codes.
+// When an HTTPError is returned by an ErrorHTTPHandler then a status code comes with it.
 type HTTPError interface {
 	HTTPStatusCode() int
 }
@@ -25,36 +25,25 @@ type httpError struct {
 	err  error
 }
 
-func (h httpError) HTTPStatusCode() int {
-	return h.code
-}
+func (h httpError) HTTPStatusCode() int { return h.code }
+func (h httpError) Error() string       { return h.err.Error() }
 
-func (h httpError) Error() string {
-	return h.err.Error()
-}
-
-// A http.ResponseWriter that buffers everything until the very end.
+// A http.ResponseWriter that buffers everythign written to it until CopyBuffer is called.
+// ErrorHTTPHandler uses this to ensure that users don't see partially written results followed by an error.
 type bufferedRW struct {
 	w   http.ResponseWriter
 	buf bytes.Buffer
 }
 
-func (w *bufferedRW) Header() http.Header {
-	return w.w.Header()
-}
+func (w *bufferedRW) Header() http.Header         { return w.w.Header() }
+func (w *bufferedRW) Write(b []byte) (int, error) { return w.buf.Write(b) }
+func (w *bufferedRW) WriteHeader(s int)           { w.w.WriteHeader(s) }
+func (w *bufferedRW) CopyBuffer() (int64, error)  { return io.Copy(w.w, &w.buf) }
 
-func (w *bufferedRW) Write(b []byte) (int, error) {
-	return w.buf.Write(b)
-}
-
-func (w *bufferedRW) WriteHeader(s int) {
-	w.w.WriteHeader(s)
-}
-
-func (w *bufferedRW) CopyBuffer() (int64, error) {
-	return io.Copy(w.w, &w.buf)
-}
-
+// ErrorHTTPHandler has some behavior that makes it easier to do the right thing in http handlers.
+// 1. Buffer all output to the client until the entire handler has executed and the returned error is known.
+// 2. By default all errors get a 500 HTTP status code.
+// 3. Handlers can return an error of type: HTTPError to provide a different http status code.
 func ErrorHTTPHandler(h func(http.ResponseWriter, *http.Request) error) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
