@@ -33,10 +33,37 @@ func (h httpError) Error() string {
 	return h.err.Error()
 }
 
+// A http.ResponseWriter that buffers everything until the very end.
+type bufferedRW struct {
+	w   http.ResponseWriter
+	buf bytes.Buffer
+}
+
+func (w *bufferedRW) Header() http.Header {
+	return w.w.Header()
+}
+
+func (w *bufferedRW) Write(b []byte) (int, error) {
+	return w.buf.Write(b)
+}
+
+func (w *bufferedRW) WriteHeader(s int) {
+	w.w.WriteHeader(s)
+}
+
+func (w *bufferedRW) CopyBuffer() (int64, error) {
+	return io.Copy(w.w, &w.buf)
+}
+
 func ErrorHTTPHandler(h func(http.ResponseWriter, *http.Request) error) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		err := h(w, r)
+
+		// Write to a buffer first to avoid writing partial results if an error occurs during template execution
+		bufferedWriter := bufferedRW{w: w}
+
+		err := h(&bufferedWriter, r)
 		if err == nil {
+			bufferedWriter.CopyBuffer()
 			return
 		}
 
@@ -231,15 +258,7 @@ func (s *Server) mux() *http.ServeMux {
 			timers = append(timers, c)
 		}
 
-		// Write to a buffer first to avoid writing partial results if an error occurs during template execution
-		var buf bytes.Buffer
-		if err := homePage.Execute(&buf, timers); err != nil {
-			return err
-		}
-
-		// OK, no errors, copy the written string out.
-		io.Copy(w, &buf)
-		return nil
+		return homePage.Execute(w, timers)
 	}))
 
 	m.HandleFunc("GET /timer/{id}", ErrorHTTPHandler(func(w http.ResponseWriter, r *http.Request) error {
@@ -259,10 +278,8 @@ func (s *Server) mux() *http.ServeMux {
 			return err
 		}
 		if lt != "" {
-			if lastTime, err := time.Parse(time.RFC3339, lt); err != nil {
+			if c.LastTime, err = time.Parse(time.RFC3339, lt); err != nil {
 				return err
-			} else {
-				c.LastTime = lastTime
 			}
 		}
 
