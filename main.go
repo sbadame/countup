@@ -219,10 +219,8 @@ func (s *Server) mux() *http.ServeMux {
 			}
 
 			if lt != "" {
-				if lastTime, err := time.Parse(time.RFC3339, lt); err != nil {
+				if c.LastTime, err = time.Parse(time.RFC3339, lt); err != nil {
 					return err
-				} else {
-					c.LastTime = lastTime
 				}
 			}
 
