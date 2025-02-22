@@ -67,10 +67,12 @@ func (c CountDown) NextDue() time.Time {
 
 var (
 	timer = template.Must(template.New("timer").Parse(`
-<div id="timer-{{.Id}}" hx-get="timer/{{.Id}}" hx-trigger="timerUpdate/{{.Id}}" class="border-bottom d-flex pt-3 text-muted">
-<div class="p-3">
-  <strong class="text-dark">{{.Name}}</strong>
+<div id="timer-{{.Id}}" hx-get="timer/{{.Id}}" hx-trigger="timerUpdate/{{.Id}}" class="d-flex text-muted">
+<div class="p-1">
   <button type="button" class="btn btn-sm btn-success" hx-post="timer/{{.Id}}/reset" hx-swap="none"><i class="bi bi-check-circle"></i></button>
+</div>
+<div class="border-bottom p-1 flex-grow-1">
+  <strong class="text-dark">{{.Name}}</strong>
   <p class="my-0">
       {{.Description}}
       {{ if .Description }}<br>{{end}}
@@ -83,6 +85,8 @@ var (
 	Do it again in <span class="last-time" data-format-distance-to-now="{{/* RFC3339 */}}{{.NextDue.Format "2006-01-02T15:04:05Z07:00"}}"></span>
       {{- end}}
   </p>
+</div>
+<div class="border-bottom p-1">
   <button type="button" class="btn btn-sm btn-outline-danger" hx-delete="timer/{{.Id}}" hx-swap="delete" hx-target="#timer-{{.Id}}"><i class="bi bi-trash"></i></button>
 </div>
 </div>
