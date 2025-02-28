@@ -140,8 +140,8 @@ var (
       </a>
     </header>
 
-    <main id="timerList" class="container">
-      <div class="bg-body rounded shadow-sm">
+    <main class="container">
+      <div id="timerList" class="bg-body rounded shadow-sm">
 	{{range .}}
 	  {{template "timer" .}}
 	{{end}}
