@@ -83,7 +83,7 @@ func (c CountDown) NextDue() time.Time {
 
 var (
 	timer = template.Must(template.New("timer").Parse(`
-<div id="timer-{{.Id}}" hx-get="timer/{{.Id}}" hx-trigger="timerUpdate/{{.Id}}" class="d-flex text-muted">
+<div id="timer-{{.Id}}" hx-get="timer/{{.Id}}" hx-trigger="timerUpdate/{{.Id}}" class="timer d-flex text-muted">
 <div class="p-1">
   <button type="button" class="btn btn-sm btn-success" hx-post="timer/{{.Id}}/reset" hx-swap="none"><i class="bi bi-check-circle"></i></button>
 </div>
@@ -98,7 +98,7 @@ var (
 	<br>
       {{- end}}
       {{ if .Frequency -}}
-	Do it again in <span class="last-time" data-format-distance-to-now="{{/* RFC3339 */}}{{.NextDue.Format "2006-01-02T15:04:05Z07:00"}}"></span>
+	<span data-next-due="{{/* RFC3339 */}}{{.NextDue.Format "2006-01-02T15:04:05Z07:00"}}"></span>
       {{- end}}
   </p>
 </div>
@@ -207,6 +207,18 @@ var (
       function renderTimer() {
 	document.querySelectorAll('[data-format-distance-to-now]').forEach(e => e.innerText = dateFns.formatDistanceToNow(e.dataset.formatDistanceToNow));
 	document.querySelectorAll('[data-locale-date-string]').forEach(e => e.innerText = new Date(e.dataset.localeDateString).toLocaleDateString());
+	document.querySelectorAll('[data-next-due]').forEach(e => {
+	    const nextDue = new Date(e.dataset.nextDue);
+	    const isPast = dateFns.isPast(nextDue);
+	    const timeDistance = dateFns.formatDistanceToNow(nextDue);
+
+	    if (isPast) {
+	      e.innerText = ` + "`Overdue by ${timeDistance}!`" + `;
+	      e.closest(".timer").classList.add("bg-danger-subtle");
+	    } else {
+	      e.innerText = ` + "`Do it again in ${timeDistance}`" + `;
+	    }
+	});
       }
       renderTimer()
       document.addEventListener('htmx:afterSwap', renderTimer);
