@@ -134,12 +134,11 @@ var (
     </style>
   </head>
   <body class="bg-light">
-    <header class="d-flex flex-wrap justify-content-center py-3 mb-4 border-bottom">
-      <a href="/" class="d-flex align-items-center mb-3 mb-md-0 me-md-auto text-dark text-decoration-none">
-        <span class="fs-4">Count up Timer</span>
-      </a>
+    <header class="d-flex flex-wrap justify-content-center border-bottom">
+      <h1 href="/" class="display-1 d-flex align-items-center mb-3 mb-md-0 me-md-auto text-dark text-decoration-none">
+        Count up Timer
+      </h1>
     </header>
-
     <main class="container">
       <div id="timerList" class="bg-body rounded shadow-sm">
 	{{range .}}
